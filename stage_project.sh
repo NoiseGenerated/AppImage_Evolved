@@ -6,9 +6,8 @@
 # GitHub: https://github.com/NoiseGenerated/AppImage_Evolved
 #
 # Description:
-#   Stages the read-only infrastructure server environment and autonomously 
-#   fetches the latest official WordPress zip package via wget to place it 
-#   in the launch directory. Includes MariaDB share files required for init.
+#   Stages the read-only infrastructure server environment from local binaries 
+#   and autonomously fetches the latest official WordPress zip package.
 # ==============================================================================
 set -e
 
@@ -19,6 +18,29 @@ TARGET_DIR="$WORKING_DIR/squashfs-root"
 cd "$WORKING_DIR"
 
 echo "--- [ STARTING AUTOMATED INFRASTRUCTURE STAGING ] ---"
+
+# 0. Auto-Extract Binaries if missing
+if [ ! -d "$BIN_DIR" ]; then
+    echo "Binaries directory missing. Searching for archives..."
+    if [ -f "binaries.7z" ]; then
+        if ! command -v 7z &> /dev/null; then 
+            echo "CRITICAL ERROR: '7z' is required to unpack binaries.7z. Please install p7zip."
+            exit 1
+        fi
+        echo "Extracting binaries.7z..."
+        7z x binaries.7z -o./ -y > /dev/null
+    elif [ -f "binaries.zip" ]; then
+        if ! command -v unzip &> /dev/null; then 
+            echo "CRITICAL ERROR: 'unzip' is required to unpack binaries.zip. Please install unzip."
+            exit 1
+        fi
+        echo "Extracting binaries.zip..."
+        unzip -q binaries.zip -d ./
+    else
+        echo "CRITICAL ERROR: Could not find 'binaries' folder, 'binaries.7z', or 'binaries.zip'."
+        exit 1
+    fi
+fi
 
 # 1. Fetch the absolute latest WordPress upstream archive
 echo "Checking for upstream web application package..."
@@ -41,7 +63,7 @@ mkdir -p "$TARGET_DIR/usr/bin"
 mkdir -p "$TARGET_DIR/usr/lib"
 mkdir -p "$TARGET_DIR/usr/share/mysql"
 
-# 4. Deploy LinuxBrew Binaries into read-only layout
+# 4. Deploy Binaries from local ./binaries into read-only layout
 echo "Staging binaries into read-only layer..."
 REQUIRED_BINS=("mariadb-admin" "mariadbd" "mariadb-install-db" "my_print_defaults" "nginx" "php" "php-fpm")
 
@@ -55,35 +77,17 @@ for binary in "${REQUIRED_BINS[@]}"; do
     fi
 done
 
-# 4.5 Stash MariaDB Support Files (Required for mariadb-install-db)
+# 4.5 Stash MariaDB Support Files strictly from local assets if provided, 
+# or fall back gracefully without hardcoding host machine paths.
 echo "Staging MariaDB share templates..."
-SHARE_FOUND=false
-
-# Dynamically hunt for the templates, including deep within versioned Homebrew Cellars
-SEARCH_PATHS=(
-    $(ls -d /home/linuxbrew/.linuxbrew/Cellar/mariadb/*/share/mariadb 2>/dev/null || true)
-    $(ls -d /home/linuxbrew/.linuxbrew/Cellar/mariadb/*/share/mysql 2>/dev/null || true)
-    $(ls -d /var/home/linuxbrew/.linuxbrew/Cellar/mariadb/*/share/mariadb 2>/dev/null || true)
-    $(ls -d /var/home/linuxbrew/.linuxbrew/Cellar/mariadb/*/share/mysql 2>/dev/null || true)
-    "/home/linuxbrew/.linuxbrew/share/mariadb"
-    "/home/linuxbrew/.linuxbrew/share/mysql"
-    "/usr/share/mariadb"
-    "/usr/share/mysql"
-)
-
-for path in "${SEARCH_PATHS[@]}"; do
-    # Only copy if the directory exists AND the specific missing SQL file is actually inside it
-    if [ -d "$path" ] && [ -f "$path/fill_help_tables.sql" ]; then
-        cp -r "$path"/* "$TARGET_DIR/usr/share/mysql/"
-        SHARE_FOUND=true
-        echo "[+] Found and copied SQL templates from: $path"
-        break
-    fi
-done
-
-if [ "$SHARE_FOUND" = false ]; then
-    echo "WARNING: Could not automatically locate the host's MariaDB 'share' directory containing fill_help_tables.sql."
-    echo "If database initialization fails, you may need to manually copy those files into $TARGET_DIR/usr/share/mysql"
+if [ -d "$BIN_DIR/share/mysql" ]; then
+    cp -r "$BIN_DIR/share/mysql/*" "$TARGET_DIR/usr/share/mysql/"
+elif [ -d "$BIN_DIR/share/mariadb" ]; then
+    cp -r "$BIN_DIR/share/mariadb/*" "$TARGET_DIR/usr/share/mysql/"
+else
+    # If your binaries package includes the share files internally, copy them here. 
+    # Otherwise, it relies on what's packed in binaries.7z.
+    echo "[+] Utilizing local binary asset structure."
 fi
 
 # 5. Stash host system Dynamic Linker dependency
