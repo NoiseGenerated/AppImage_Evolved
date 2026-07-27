@@ -156,7 +156,8 @@ EOF
         # 2. Database Initialization
         if [ ! -d "$MOUNT_A/db/mysql" ]; then
             echo "Initializing MariaDB system tables inside writeable slot..."
-            mariadb-install-db --datadir="$MOUNT_A/db" --user=$(whoami) --auth-root-authentication-method=normal --skip-test-db >/dev/null 2>&1
+            # Removed silent failure and added --basedir so it finds the share templates
+            mariadb-install-db --basedir="$APPDIR/usr" --datadir="$MOUNT_A/db" --user=$(whoami) --auth-root-authentication-method=normal --skip-test-db --force  # Above keyboard failure: mariadb-install-db --basedir="$APPDIR/usr" --datadir="$MOUNT_A/db" --user=$(whoami) --auth-root-authentication-method=normal --skip-test-db
         fi
 
         # 3. Dynamic External WordPress Deployment

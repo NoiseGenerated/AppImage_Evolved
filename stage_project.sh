@@ -8,7 +8,7 @@
 # Description:
 #   Stages the read-only infrastructure server environment and autonomously 
 #   fetches the latest official WordPress zip package via wget to place it 
-#   in the launch directory.
+#   in the launch directory. Includes MariaDB share files required for init.
 # ==============================================================================
 set -e
 
@@ -39,10 +39,11 @@ echo "Constructing skeleton directories..."
 mkdir -p "$TARGET_DIR/etc"
 mkdir -p "$TARGET_DIR/usr/bin"
 mkdir -p "$TARGET_DIR/usr/lib"
+mkdir -p "$TARGET_DIR/usr/share/mysql"
 
 # 4. Deploy LinuxBrew Binaries into read-only layout
 echo "Staging binaries into read-only layer..."
-REQUIRED_BINS=("mariadb-admin" "mariadbd" "mariadb-install-db" "nginx" "php" "php-fpm")
+REQUIRED_BINS=("mariadb-admin" "mariadbd" "mariadb-install-db" "my_print_defaults" "nginx" "php" "php-fpm")
 
 for binary in "${REQUIRED_BINS[@]}"; do
     if [ -f "$BIN_DIR/$binary" ]; then
@@ -53,6 +54,37 @@ for binary in "${REQUIRED_BINS[@]}"; do
         exit 1
     fi
 done
+
+# 4.5 Stash MariaDB Support Files (Required for mariadb-install-db)
+echo "Staging MariaDB share templates..."
+SHARE_FOUND=false
+
+# Dynamically hunt for the templates, including deep within versioned Homebrew Cellars
+SEARCH_PATHS=(
+    $(ls -d /home/linuxbrew/.linuxbrew/Cellar/mariadb/*/share/mariadb 2>/dev/null || true)
+    $(ls -d /home/linuxbrew/.linuxbrew/Cellar/mariadb/*/share/mysql 2>/dev/null || true)
+    $(ls -d /var/home/linuxbrew/.linuxbrew/Cellar/mariadb/*/share/mariadb 2>/dev/null || true)
+    $(ls -d /var/home/linuxbrew/.linuxbrew/Cellar/mariadb/*/share/mysql 2>/dev/null || true)
+    "/home/linuxbrew/.linuxbrew/share/mariadb"
+    "/home/linuxbrew/.linuxbrew/share/mysql"
+    "/usr/share/mariadb"
+    "/usr/share/mysql"
+)
+
+for path in "${SEARCH_PATHS[@]}"; do
+    # Only copy if the directory exists AND the specific missing SQL file is actually inside it
+    if [ -d "$path" ] && [ -f "$path/fill_help_tables.sql" ]; then
+        cp -r "$path"/* "$TARGET_DIR/usr/share/mysql/"
+        SHARE_FOUND=true
+        echo "[+] Found and copied SQL templates from: $path"
+        break
+    fi
+done
+
+if [ "$SHARE_FOUND" = false ]; then
+    echo "WARNING: Could not automatically locate the host's MariaDB 'share' directory containing fill_help_tables.sql."
+    echo "If database initialization fails, you may need to manually copy those files into $TARGET_DIR/usr/share/mysql"
+fi
 
 # 5. Stash host system Dynamic Linker dependency
 echo "Staging system dynamic linker..."
