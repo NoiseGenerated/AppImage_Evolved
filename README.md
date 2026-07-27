@@ -27,27 +27,29 @@ read-only SquashFS execution layer while completely ignoring local testing artif
 
 ```text
 .
-├── binaries/                                 # Local asset storage (ignored by git tracking)
+├── binaries/                               # Local asset storage (ignored by git tracking)
 │   ├── all_files_in_this_folder_came_LinuxBrew
 │   ├── even_tho_all_files_are_clean_I_highly_recommend_you_source_them_yourself
 │   ├── mariadb-admin
-│   ├── mariadbd
+│   ├── mariadbd (v12.3.2)
 │   ├── mariadb-install-db
+│   ├── my_print_defaults
 │   ├── nginx
 │   ├── php
 │   └── php-fpm
-├── binaries.7z                               # Compressed production binary archive
-├── evolved_builder.sh                        # Core compilation script (squashfs/padding/slot chain)
-├── stage_project.sh                          # Universal staging script (directory assembly & upstream wget)
-└── .gitignore                                # Strict exclusion profile protecting repo scale
+├── binaries.7z                             # Compressed production binary archive
+├── evolved_builder.sh                      # Core compilation script (squashfs/padding/slot chain)
+├── stage_project.sh                        # Universal staging script (directory assembly & upstream wget)
+└── .gitignore                              # Strict exclusion profile protecting repo scale
 
 squashfs-root/
 ├── etc/                       # Skeleton fallback configuration directory
 └── usr/
     ├── bin/
     │   ├── mariadb-admin      # Database management utility
-    │   ├── mariadbd           # Core MariaDB database daemon
+    │   ├── mariadbd           # Core MariaDB database daemon (v12.3.2)
     │   ├── mariadb-install-db # System table factory initializer
+    │   ├── my_print_defaults  # Utility to read option files
     │   ├── nginx              # High-performance web server binary
     │   ├── php                # CLI PHP interpreter
     │   └── php-fpm            # FastCGI Process Manager binary
